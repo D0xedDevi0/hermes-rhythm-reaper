@@ -1,0 +1,39 @@
+name: rhythm-reaper
+version: 0.1.0
+manifest_version: 2
+api_version: 1
+requires_hermes: ">=0.23.0"
+description: >-
+  The Rhythm Reaper - a hip-hop producer desk inside Hermes. Knows 41 hip-hop
+  lanes across seven families (foundational, trap, drill, melodic, alt, hard,
+  conscious) and, for any of them, returns the full production spec: tempo
+  family, key centres, drum programme, low end, harmony and sample source, vocal
+  delivery, the dynamic ARC, metatag vocabulary, what to exclude, and a section
+  plan with bar targets and an energy map.
+
+  It then builds a complete, pasteable Suno deliverable - style field written
+  out, exclude list, tagged lyric frame with the hook placed, a phonetic
+  pronunciation lexicon for every proper noun, and generation notes - and
+  validates a draft against the platform's real limits (style <= 1000 chars,
+  lyrics <= 3000 chars, every section structurally tagged, no contradictory
+  dynamics sharing a section).
+
+  It deliberately does not generate lyrics: template bars are slop. It hands the
+  writer a frame that is already correct.
+
+  No credentials, no network, no subprocesses - pure local computation.
+author: D0XEDDEV
+kind: standalone
+platforms:
+  - linux
+  - macos
+  - windows
+provides_tools:
+  - reaper_lanes
+  - reaper_lane
+  - reaper_block
+  - reaper_check
+  - reaper_respell
+provides_hooks: []
+requires_env: []
+python_dependencies: []
