@@ -1,0 +1,25 @@
+{
+  "file": "docs/demo-song.mp4",
+  "duration_s": 88.0,
+  "frames": 2640,
+  "fps": 30,
+  "codec": "h264",
+  "pix_fmt": "yuv420p",
+  "size": "1600x900",
+  "bytes": 16425023,
+  "lanes": 41,
+  "lane_sweep": "41/41",
+  "tools": 5,
+  "validator": {
+    "bad_ok": false,
+    "good_ok": true,
+    "bad_issues": 3
+  },
+  "renderer": "docs/render/demo.html, drawn frame-by-frame through Chrome over CDP by scripts/demo_render.py and encoded with ffmpeg",
+  "method": "Every frame is a pure function of t, and every string on screen comes from docs/evidence/demo_capture.txt - real handler output. Not a screen recording.",
+  "audio": {
+    "codec": "aac",
+    "sample_rate": "48000",
+    "channels": 2
+  }
+}

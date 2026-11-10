@@ -106,12 +106,19 @@ class Tab:
                 pass
 
 
-def capture(start: int, end: int, fps: int = FPS) -> None:
-    """Render frames [start, end) to PNGs. Resumable: existing frames are skipped."""
+def capture(start: int, end: int, fps: int = FPS, scale: float = 1.0,
+            frames_dir: pathlib.Path | None = None) -> None:
+    """Render frames [start, end) to PNGs. Resumable: existing frames are skipped.
+
+    ``scale`` stretches/compresses the timeline: frame ``i`` samples ``t = i/fps*scale``.
+    At scale 1.0 that is the cut as authored; above 1.0 the same timeline plays faster,
+    which is how a 94.5s cut becomes an 88s one without re-designing a single scene.
+    """
+    frames = frames_dir or FRAMES
     if not HTML.exists():
         sys.exit("run `demo_render.py html` first")
-    FRAMES.mkdir(parents=True, exist_ok=True)
-    todo = [i for i in range(start, end) if not (FRAMES / f"f{i:05d}.png").exists()]
+    frames.mkdir(parents=True, exist_ok=True)
+    todo = [i for i in range(start, end) if not (frames / f"f{i:05d}.png").exists()]
     if not todo:
         print(f"[capture] frames {start}..{end - 1} already on disk, nothing to do")
         return
@@ -132,34 +139,36 @@ def capture(start: int, end: int, fps: int = FPS) -> None:
         print(f"[capture] page ready: {meta['total']}s, {meta['fps']}fps, {meta['width']}x{meta['height']}")
         t0 = time.time()
         for k, i in enumerate(todo, 1):
-            t = i / fps
+            t = i / fps * scale
             tab.evaluate(f"window.seek({t:.6f})")
             shot = tab.call("Page.captureScreenshot", format="png", fromSurface=True, optimizeForSpeed=True)
-            (FRAMES / f"f{i:05d}.png").write_bytes(base64.b64decode(shot["data"]))
+            (frames / f"f{i:05d}.png").write_bytes(base64.b64decode(shot["data"]))
             if k % 60 == 0 or k == len(todo):
                 el = time.time() - t0
                 print(f"[capture] {k}/{len(todo)} frames  {el:.0f}s  {k / el:.1f} fps  last f{i:05d}.png", flush=True)
     finally:
         tab.close()
-    print(f"[capture] done: {len(todo)} frames written to {FRAMES}")
+    print(f"[capture] done: {len(todo)} frames written to {frames}")
 
 
 # ------------------------------------------------------------------------- encode
 
-def encode(scenes: dict, fps: int = FPS, keep: bool = False) -> None:
-    meta_f = FRAMES / "f00000.png"
+def encode(scenes: dict, fps: int = FPS, keep: bool = False,
+           out: pathlib.Path | None = None, frames_dir: pathlib.Path | None = None) -> None:
+    out = out or OUT_MP4
+    frames = frames_dir or FRAMES
+    meta_f = frames / "f00000.png"
     if not meta_f.exists():
         sys.exit("no frames to encode")
-    n = len([p for p in FRAMES.glob("f*.png")])
-    duration = float(open(WORK / "duration.txt").read()) if (WORK / "duration.txt").exists() else None
-    cmd = [FFMPEG, "-y", "-v", "error", "-framerate", str(fps), "-i", str(FRAMES / "f%05d.png"),
+    n = len([p for p in frames.glob("f*.png")])
+    cmd = [FFMPEG, "-y", "-v", "error", "-framerate", str(fps), "-i", str(frames / "f%05d.png"),
            "-c:v", "libx264", "-preset", "slow", "-crf", "19", "-pix_fmt", "yuv420p",
-           "-movflags", "+faststart", str(OUT_MP4)]
-    print(f"[encode] {n} frames -> {OUT_MP4}")
+           "-movflags", "+faststart", str(out)]
+    print(f"[encode] {n} frames -> {out}")
     subprocess.run(cmd, check=True)
     probe = subprocess.run([FFPROBE, "-v", "error", "-show_entries", "format=duration,size",
                             "-show_entries", "stream=width,height,codec_name,nb_frames",
-                            "-of", "json", str(OUT_MP4)], capture_output=True, text=True, check=True)
+                            "-of", "json", str(out)], capture_output=True, text=True, check=True)
     info = json.loads(probe.stdout)
     dur = float(info["format"]["duration"])
     st = info["streams"][0]
@@ -169,23 +178,25 @@ def encode(scenes: dict, fps: int = FPS, keep: bool = False) -> None:
         sys.exit(f"[verify] FAILED: {n} frames at {fps}fps should be {n / fps:.2f}s, video says {dur:.2f}s")
     print("[verify] duration matches the frame count")
     if not keep:
-        shutil.rmtree(FRAMES, ignore_errors=True)
+        shutil.rmtree(frames, ignore_errors=True)
         print(f"[encode] removed the frame sequence (kept {WORK})")
 
 
-def write_proof(fps: int = FPS) -> dict:
+def write_proof(fps: int = FPS, out: pathlib.Path | None = None) -> dict:
     """Write docs/evidence/demo_proof.json from the encoded file itself - never hand-typed."""
+    out = out or OUT_MP4
     probe = subprocess.run([FFPROBE, "-v", "error",
                             "-show_entries", "format=duration,size",
-                            "-show_entries", "stream=codec_name,pix_fmt,width,height,nb_frames",
-                            "-of", "json", str(OUT_MP4)], capture_output=True, text=True, check=True)
+                            "-show_entries", "stream=codec_type,codec_name,pix_fmt,width,height,nb_frames,sample_rate,channels",
+                            "-of", "json", str(out)], capture_output=True, text=True, check=True)
     info = json.loads(probe.stdout)
-    st = info["streams"][0]
+    st = next(s for s in info["streams"] if s.get("codec_type") == "video")
+    audio = next((s for s in info["streams"] if s.get("codec_type") == "audio"), None)
     scenes = json.loads(SCENES_JSON.read_text())
     duration = float(info["format"]["duration"])
     frames = int(st.get("nb_frames") or 0)
     proof = {
-        "file": "docs/demo.mp4",
+        "file": out.name if out.parent == HERE / "docs" else str(out),
         "duration_s": round(duration, 3),
         "frames": frames,
         "fps": fps,
@@ -206,12 +217,15 @@ def write_proof(fps: int = FPS) -> dict:
         "method": "Every frame is a pure function of t, and every string on screen comes from "
                   "docs/evidence/demo_capture.txt - real handler output. Not a screen recording.",
     }
-    out = HERE / "docs/evidence/demo_proof.json"
-    out.write_text(json.dumps(proof, indent=2) + "\n")
+    if audio:
+        proof["audio"] = {"codec": audio.get("codec_name"), "sample_rate": audio.get("sample_rate"),
+                          "channels": audio.get("channels")}
+    proof_path = HERE / "docs/evidence" / (f"{out.stem}_proof.json" if out.name != "demo.mp4" else "demo_proof.json")
+    proof_path.write_text(json.dumps(proof, indent=2) + "\n")
     expect = round(duration * fps)
     if abs(expect - frames) > 2:
         sys.exit(f"[proof] FAILED: {frames} frames at {fps}fps implies {expect}, file says {duration}s")
-    print(f"[proof] wrote {out}: {duration}s, {frames} frames, {proof['lane_sweep']} lanes")
+    print(f"[proof] wrote {proof_path}: {duration}s, {frames} frames, {proof['lane_sweep']} lanes")
     return proof
 
 
@@ -224,17 +238,22 @@ def main() -> None:
     ap.add_argument("--end", type=int, default=None)
     ap.add_argument("--fps", type=int, default=FPS)
     ap.add_argument("--keep-frames", action="store_true")
+    ap.add_argument("--scale", type=float, default=1.0, help="timeline time-scale (>1 plays faster)")
+    ap.add_argument("--frames-dir", default=None)
+    ap.add_argument("--out", default=None)
     a = ap.parse_args()
+    fd = pathlib.Path(a.frames_dir) if a.frames_dir else None
+    out = pathlib.Path(a.out) if a.out else None
 
     if a.cmd == "html":
         build_html()
     elif a.cmd == "capture":
-        capture(a.start, a.end if a.end is not None else a.start + 300, a.fps)
+        capture(a.start, a.end if a.end is not None else a.start + 300, a.fps, a.scale, fd)
     elif a.cmd == "encode":
-        encode(json.loads(SCENES_JSON.read_text()), a.fps, a.keep_frames)
-        write_proof(a.fps)
+        encode(json.loads(SCENES_JSON.read_text()), a.fps, a.keep_frames, out, fd)
+        write_proof(a.fps, out)
     elif a.cmd == "proof":
-        write_proof(a.fps)
+        write_proof(a.fps, out)
     else:
         build_html()
         total = build_total(a.fps)

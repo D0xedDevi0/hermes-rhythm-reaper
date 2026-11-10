@@ -12,9 +12,16 @@ four. The desk owns the production decisions and hands you the structure already
 
 ## Watch it
 
-A 94-second walkthrough — animated, rendered offline from real captured tool output —
-[`docs/demo.mp4`](docs/demo.mp4) ([source ledger](docs/evidence/demo_capture.txt) ·
-[proof](docs/evidence/demo_proof.json)):
+[`docs/demo-song.mp4`](docs/demo-song.mp4) — the **88-second submission cut**, scored with the
+track this desk's own spec produced (`dark-trap`, 128 BPM, C# minor; the frame and the
+exclude line are `reaper_block` output, the bars were written by hand and passed through
+`reaper_check`). Player notes: [`docs/song/forty-one-lanes.md`](docs/song/forty-one-lanes.md).
+
+The silent **94.5-second authored cut** is [`docs/demo.mp4`](docs/demo.mp4)
+([source ledger](docs/evidence/demo_capture.txt) · [proof](docs/evidence/demo_proof.json)).
+Both are the same timeline: the 88s version is that cut sampled 1.0738636x faster
+(`demo_render.py capture --scale`), not a re-edit — every frame's design and every drawn
+string is identical, and the score is aligned so the song's own ending lands on the video's.
 
 Every frame is drawn on a canvas by [`docs/render/demo.html`](docs/render/demo.html),
 where the whole picture is a pure function of `t`: nothing is timed, nothing is randomised
@@ -157,7 +164,7 @@ respelling and rewrite the bar.
 ## Tests
 
 ```bash
-python -m unittest discover -s tests -v     # 54 offline tests, stdlib only
+python -m unittest discover -s tests -v     # 55 offline tests, stdlib only
 ```
 
 The suite includes the sweep the demo shows: **every one of the 41 lanes** is built through
@@ -193,7 +200,7 @@ skills/rhythm-reaper-operations/SKILL.md   operator's manual (loaded with the pl
 scripts/demo_build.py       capture the real handler output, and render the static cut
 scripts/demo_render.py      render the animated cut through Chrome + ffmpeg
 docs/render/demo.html       the animated demo itself (canvas, deterministic from t)
-tests/                      54 offline tests
+tests/                      55 offline tests
 docs/                       the demo cut and its source ledger
 ```
 
