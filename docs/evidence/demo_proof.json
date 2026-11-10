@@ -1,0 +1,16 @@
+{
+  "file": "docs/demo.mp4",
+  "duration_s": 87.0,
+  "codec": "h264",
+  "pix_fmt": "yuv420p",
+  "size": "1600x900",
+  "frames": 2610,
+  "lanes": 41,
+  "lane_sweep": "41/41",
+  "validator": {
+    "bad_ok": false,
+    "good_ok": true,
+    "bad_issues": 3
+  },
+  "method": "Terminal-style frames rendered offline from real handler output (docs/evidence/demo_capture.txt). Not a screen recording."
+}

@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # No pip install anywhere. The plugin's whole claim is that it needs nothing
+      # from PyPI and touches no network - if a future edit adds a third-party
+      # import, this step fails.
+      - name: Prove the plugin imports with the standard library only
+        run: |
+          python3 -S -c "import sys, pathlib, importlib.util as u; \
+            p=pathlib.Path('__init__.py'); s=u.spec_from_file_location('rr', p); \
+            m=u.module_from_spec(s); s.loader.exec_module(m); \
+            print('stdlib-only import ok:', len(m.tools.__all__), 'tools,', len(m.genres.LANES), 'lanes')"
+
+      - name: Offline test suite (stdlib unittest - no network, no credentials)
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Manifest declares no PyPI dependencies or required env
+        run: |
+          grep -q "^python_dependencies: \[\]$" plugin.yaml
+          grep -q "^requires_env: \[\]$" plugin.yaml
+
+      - name: Every declared tool is actually registered
+        run: |
+          python3 - <<'PY'
+          import importlib.util as u, pathlib, re
+          manifest = pathlib.Path("plugin.yaml").read_text()
+          package = pathlib.Path("__init__.py").read_text()
+          declared = set(re.findall(r"^\s+-\s+(reaper_\w+)$", manifest, re.M))
+          wired = {m for m in re.findall(r'"(reaper_\w+)"', package)}
+          missing = declared - wired
+          assert not missing, f"declared but never registered: {sorted(missing)}"
+          print(f"{len(declared)} declared tools, all registered")
+          PY

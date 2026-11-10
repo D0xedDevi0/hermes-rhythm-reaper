@@ -1,0 +1,475 @@
+{
+  "counts": {
+    "lanes": 41,
+    "families": {
+      "foundational": 10,
+      "trap": 8,
+      "drill": 4,
+      "melodic": 4,
+      "alt": 6,
+      "hard": 7,
+      "conscious": 2
+    },
+    "tools": 5,
+    "sweep_ok": 41
+  },
+  "search": {
+    "count": 5,
+    "total_lanes": 41,
+    "families": {
+      "foundational": 10,
+      "trap": 8,
+      "drill": 4,
+      "melodic": 4,
+      "alt": 6,
+      "hard": 7,
+      "conscious": 2
+    },
+    "lanes": [
+      {
+        "id": "trap",
+        "name": "Trap",
+        "family": "trap",
+        "bpm": "130-150",
+        "keys": [
+          "F minor",
+          "G minor",
+          "C# minor"
+        ],
+        "vibe": "dark 808 worship, rolling hats, menacing minimalism"
+      },
+      {
+        "id": "latin-trap",
+        "name": "Latin Trap",
+        "family": "trap",
+        "bpm": "130-145",
+        "keys": [
+          "A minor",
+          "D minor"
+        ],
+        "vibe": "reggaeton-trap crossover, dembow pulse, romantic menace"
+      },
+      {
+        "id": "uk-drill",
+        "name": "UK Drill",
+        "family": "drill",
+        "bpm": "138-145",
+        "keys": [
+          "F minor",
+          "G minor",
+          "A minor"
+        ],
+        "vibe": "cold London menace, sliding 808s, sparse and sinister"
+      },
+      {
+        "id": "ny-drill",
+        "name": "New York Drill",
+        "family": "drill",
+        "bpm": "140-150",
+        "keys": [
+          "G minor",
+          "A minor",
+          "C minor"
+        ],
+        "vibe": "aggressive Brooklyn/Bronx energy, hard 808s, uptempo menace"
+      },
+      {
+        "id": "sample-drill",
+        "name": "Sample Drill",
+        "family": "drill",
+        "bpm": "138-148",
+        "keys": [
+          "E minor",
+          "A minor"
+        ],
+        "vibe": "soulful sample flipped over drill drums, nostalgic and menacing"
+      }
+    ]
+  },
+  "lane": {
+    "id": "uk-drill",
+    "name": "UK Drill",
+    "family": "drill",
+    "bpm": "138-145",
+    "keys": [
+      "F minor",
+      "G minor",
+      "A minor"
+    ],
+    "vibe": "cold London menace, sliding 808s, sparse and sinister",
+    "drums": "sparse punchy kick, sharp snare on the drill placement, skittering hats, no clutter",
+    "low_end": "signature sliding 808 sub, aggressive glides between notes",
+    "harmony": "sparse dark piano or string stabs, detuned guitar, ominous single notes",
+    "sample_source": "grim minor piano or string loops, cold synth notes",
+    "vocal": "cold monotone-coded flow with sudden bursts, heavy slang, ad-libs rapped not shouted, doubled bars",
+    "arc": "A single dark piano note holds alone. The sliding 808 and drill drums land. Verses are cold and clipped. The hook repeats a deadpan threat. A silent pocket drops before the final verse.",
+    "metatags": [
+      "[Sliding 808]",
+      "[Drill Drums]",
+      "[Cold Delivery]",
+      "[Silent Pocket]"
+    ],
+    "exclude_styles": "bright major keys, funk, boom bap swing, autotune ballads, party chants",
+    "style_field": "UK drill, cold and sinister, sparse punchy kick with the sharp drill snare placement and skittering hats, signature aggressive sliding 808 sub, sparse dark minor piano and string stabs, cold clipped monotone-coded flow with sudden bursts and doubled bars, heavy slang and deadpan threat hooks, tight narrow mix",
+    "gen_notes": [
+      "The sliding 808 is the genre's spine - reroll if it is static.",
+      "Keep the arrangement sparse; clutter kills drill."
+    ],
+    "section_plan": [
+      {
+        "section": "Intro",
+        "bars": 4,
+        "energy": 4,
+        "metatags": [
+          "[Intro]"
+        ]
+      },
+      {
+        "section": "Verse 1",
+        "bars": 16,
+        "energy": 7,
+        "metatags": [
+          "[Verse 1]"
+        ]
+      },
+      {
+        "section": "Hook",
+        "bars": 8,
+        "energy": 8,
+        "metatags": [
+          "[Hook]",
+          "[Sliding 808]",
+          "[Drill Drums]"
+        ]
+      },
+      {
+        "section": "Verse 2",
+        "bars": 16,
+        "energy": 7,
+        "metatags": [
+          "[Verse 2]"
+        ]
+      },
+      {
+        "section": "Hook",
+        "bars": 8,
+        "energy": 8,
+        "metatags": [
+          "[Hook]",
+          "[Sliding 808]",
+          "[Drill Drums]"
+        ]
+      },
+      {
+        "section": "Verse 3",
+        "bars": 12,
+        "energy": 8,
+        "metatags": [
+          "[Verse 3]"
+        ]
+      }
+    ]
+  },
+  "block": {
+    "lane": {
+      "id": "ghetto-blues",
+      "name": "Ghetto Blues (soul-trap / pain music)",
+      "family": "melodic",
+      "bpm": "70-92",
+      "keys": [
+        "A minor",
+        "F minor",
+        "G minor"
+      ],
+      "vibe": "melodic singing-rap, grief over trap drums, live guitar, gospel-adjacent"
+    },
+    "title": "Hood Up",
+    "style": {
+      "text": "Ghetto blues, soul-trap pain music, half-sung half-rapped melodic delivery with autotuned melisma on held notes and emotional cracks left in, gospel-adjacent minor-key piano, live guitar and organ, slow trap knock with soft punchy kick, crisp snare and restrained hats, warm supportive 808 sub, stacked harmonies on the chorus, intimate then huge, warm analogue mix. Lone minor piano and a guitar figure. Trap drums enter soft. Verses are half-sung confessions, low and intimate. The hook opens into an autotuned melodic cry with stacked harmonies. A live guitar or keys break resets, then the last hook is the biggest. 70-92 BPM, A minor",
+      "chars": 638,
+      "limit": 1000,
+      "trimmed": false,
+      "ok": true
+    },
+    "exclude": "aggressive shouting, EDM drops, harsh distortion, party chants, fast hats",
+    "lyrics_frame": {
+      "text": "[Intro]\n(the climb - staying solid when nobody was watching)\n____\n\n[Verse 1]\n____\n____\n____\n____\n\n[Chorus] [Melodic] [Autotune Melisma]\nI put my head down and I built it from the ground\n____\n\n[Verse 2]\n____\n____\n____\n____\n\n[Chorus] [Melodic] [Autotune Melisma]\nI put my head down and I built it from the ground\n____\n\n[Bridge]\n____\n____\n\n[Chorus] [Melodic] [Autotune Melisma]\nI put my head down and I built it from the ground\n____\n\n[Outro]\n____\n____",
+      "chars": 448,
+      "limit": 3000,
+      "ok": true,
+      "plan": [
+        {
+          "section": "Intro",
+          "tag": "[Intro]",
+          "bars": 4,
+          "energy": 3,
+          "metatags": [
+            "[Intro]"
+          ],
+          "index": 0
+        },
+        {
+          "section": "Verse 1",
+          "tag": "[Verse 1]",
+          "bars": 16,
+          "energy": 5,
+          "metatags": [
+            "[Verse 1]"
+          ],
+          "index": 1
+        },
+        {
+          "section": "Chorus",
+          "tag": "[Chorus]",
+          "bars": 8,
+          "energy": 8,
+          "metatags": [
+            "[Chorus]",
+            "[Melodic]",
+            "[Autotune Melisma]"
+          ],
+          "index": 2
+        },
+        {
+          "section": "Verse 2",
+          "tag": "[Verse 2]",
+          "bars": 16,
+          "energy": 6,
+          "metatags": [
+            "[Verse 2]"
+          ],
+          "index": 3
+        },
+        {
+          "section": "Chorus",
+          "tag": "[Chorus]",
+          "bars": 8,
+          "energy": 8,
+          "metatags": [
+            "[Chorus]",
+            "[Melodic]",
+            "[Autotune Melisma]"
+          ],
+          "index": 4
+        },
+        {
+          "section": "Bridge",
+          "tag": "[Bridge]",
+          "bars": 8,
+          "energy": 6,
+          "metatags": [
+            "[Bridge]"
+          ],
+          "index": 5
+        },
+        {
+          "section": "Chorus",
+          "tag": "[Chorus]",
+          "bars": 8,
+          "energy": 10,
+          "metatags": [
+            "[Chorus]",
+            "[Melodic]",
+            "[Autotune Melisma]"
+          ],
+          "index": 6
+        },
+        {
+          "section": "Outro",
+          "tag": "[Outro]",
+          "bars": 8,
+          "energy": 3,
+          "metatags": [
+            "[Outro]"
+          ],
+          "index": 7
+        }
+      ]
+    },
+    "energy_map": [
+      {
+        "section": "Intro",
+        "bars": 4,
+        "energy": 3
+      },
+      {
+        "section": "Verse 1",
+        "bars": 16,
+        "energy": 5
+      },
+      {
+        "section": "Chorus",
+        "bars": 8,
+        "energy": 8
+      },
+      {
+        "section": "Verse 2",
+        "bars": 16,
+        "energy": 6
+      },
+      {
+        "section": "Chorus",
+        "bars": 8,
+        "energy": 8
+      },
+      {
+        "section": "Bridge",
+        "bars": 8,
+        "energy": 6
+      },
+      {
+        "section": "Chorus",
+        "bars": 8,
+        "energy": 10
+      },
+      {
+        "section": "Outro",
+        "bars": 8,
+        "energy": 3
+      }
+    ],
+    "lexicon": [],
+    "gen_notes": [
+      "BPM drift DOWN and a minor-key drift are FEATURES here - do not chase the exact spec.",
+      "Keep the vocal cracks; perfect takes read as fake.",
+      "Guitar or keys break is the signature - reroll if it is missing."
+    ],
+    "validation": {
+      "ok": true,
+      "checks": [
+        {
+          "check": "style",
+          "chars": 638,
+          "limit": 1000,
+          "ok": true,
+          "issues": []
+        },
+        {
+          "check": "lyrics",
+          "chars": 448,
+          "limit": 3000,
+          "sections": 8,
+          "untagged": 0,
+          "contradictions": [],
+          "ok": true,
+          "issues": []
+        }
+      ],
+      "issues": [],
+      "style_chars": 638,
+      "lyrics_chars": 448
+    },
+    "pasteable": "TITLE: Hood Up\n\nSTYLE:\nGhetto blues, soul-trap pain music, half-sung half-rapped melodic delivery with autotuned melisma on held notes and emotional cracks left in, gospel-adjacent minor-key piano, live guitar and organ, slow trap knock with soft punchy kick, crisp snare and restrained hats, warm supportive 808 sub, stacked harmonies on the chorus, intimate then huge, warm analogue mix. Lone minor piano and a guitar figure. Trap drums enter soft. Verses are half-sung confessions, low and intimate. The hook opens into an autotuned melodic cry with stacked harmonies. A live guitar or keys break resets, then the last hook is the biggest. 70-92 BPM, A minor\n\nEXCLUDE: aggressive shouting, EDM drops, harsh distortion, party chants, fast hats\n\nLYRICS:\n[Intro]\n(the climb - staying solid when nobody was watching)\n____\n\n[Verse 1]\n____\n____\n____\n____\n\n[Chorus] [Melodic] [Autotune Melisma]\nI put my head down and I built it from the ground\n____\n\n[Verse 2]\n____\n____\n____\n____\n\n[Chorus] [Melodic] [Autotune Melisma]\nI put my head down and I built it from the ground\n____\n\n[Bridge]\n____\n____\n\n[Chorus] [Melodic] [Autotune Melisma]\nI put my head down and I built it from the ground\n____\n\n[Outro]\n____\n____\n\nGEN NOTES:\n  - BPM drift DOWN and a minor-key drift are FEATURES here - do not chase the exact spec.\n  - Keep the vocal cracks; perfect takes read as fake.\n  - Guitar or keys break is the signature - reroll if it is missing.",
+    "reminder": "The frame is ready; the bars are yours. Write into the bar slots, then run reaper_check on the finished lyric before pasting."
+  },
+  "bad": {
+    "ok": false,
+    "checks": [
+      {
+        "check": "style",
+        "chars": 76,
+        "limit": 1000,
+        "ok": false,
+        "issues": [
+          "references another artist's style - describe the SOUND instead"
+        ]
+      },
+      {
+        "check": "lyrics",
+        "chars": 172,
+        "limit": 3000,
+        "sections": 3,
+        "untagged": 2,
+        "contradictions": [
+          "high energy + low energy in '[High Energy] [Low Energy]'"
+        ],
+        "ok": false,
+        "issues": [
+          "2 section header(s) carry no recognised structural tag",
+          "no chorus/hook section - the song has no payoff"
+        ]
+      }
+    ],
+    "issues": [
+      "references another artist's style - describe the SOUND instead",
+      "2 section header(s) carry no recognised structural tag",
+      "no chorus/hook section - the song has no payoff"
+    ],
+    "style_chars": 76,
+    "lyrics_chars": 172,
+    "reminder": "Pronunciation is baked in at generation - sweep proper nouns BEFORE the render, and test unusual ones in a 30s clip first."
+  },
+  "good": {
+    "ok": true,
+    "checks": [
+      {
+        "check": "style",
+        "chars": 638,
+        "limit": 1000,
+        "ok": true,
+        "issues": []
+      },
+      {
+        "check": "lyrics",
+        "chars": 798,
+        "limit": 3000,
+        "sections": 5,
+        "untagged": 0,
+        "contradictions": [],
+        "ok": true,
+        "issues": []
+      }
+    ],
+    "issues": [],
+    "style_chars": 638,
+    "lyrics_chars": 798,
+    "reminder": "Pronunciation is baked in at generation - sweep proper nouns BEFORE the render, and test unusual ones in a 30s clip first."
+  },
+  "respell": {
+    "candidates": [
+      {
+        "word": "JPEG",
+        "say": "J-peg"
+      },
+      {
+        "word": "DisTrO",
+        "say": "Dis-tro"
+      },
+      {
+        "word": "Nous",
+        "say": "Noose"
+      },
+      {
+        "word": "x402",
+        "say": "ex four oh two"
+      }
+    ],
+    "count": 4,
+    "rewritten": "I got the J-peg scan of the four oh B and a Dis-tro run on Noose with ex four oh two receipts",
+    "changes": [
+      {
+        "from": "nous",
+        "to": "Noose"
+      },
+      {
+        "from": "x402",
+        "to": "ex four oh two"
+      },
+      {
+        "from": "jpeg",
+        "to": "J-peg"
+      },
+      {
+        "from": "distro",
+        "to": "Dis-tro"
+      },
+      {
+        "from": "40",
+        "to": "four oh"
+      }
+    ],
+    "note": "Caps and hyphens fix most slurs. When a caps fix fails on a word the rhyme depends on, stop respelling and rewrite the bar."
+  },
+  "good_draft": "[Intro]\nPager on the nightstand, December kept the heat off\n\n[Verse 1]\nPager on the nightstand, December kept the heat off\nMama said the rent due, I was counting what the beat got\nSold a couple verses just to keep the lights honest\nEvery dollar had a witness, every loss was a promise\nNow the same hands folding, different paper in the pocket\nI ain't change up, I just finally got to lock it\n\n[Chorus]\nI put my head down and I built it from the ground\nNobody clapped, nobody came around\nI put my head down and I built it from the ground\nAsk me how it feel now, ask me how it sound\n\n[Verse 2]\nKept the first check, framed it, wouldn't spend it\nTold my brother hold the line, we gon finish what we started\n\n[Chorus]\nI put my head down and I built it from the ground\nNobody clapped, nobody came around",
+  "bad_draft": "[Intro]\nturn it up\n\n[Part A]\nthis beat sounds like the money counter running all night\nwe out here grinding, we out here shining\n\n[High Energy] [Low Energy]\nloud quiet loud"
+}
