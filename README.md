@@ -12,7 +12,7 @@ four. The desk owns the production decisions and hands you the structure already
 
 ## Watch it
 
-An 88-second walkthrough — animated, rendered offline from real captured tool output —
+A 94-second walkthrough — animated, rendered offline from real captured tool output —
 [`docs/demo.mp4`](docs/demo.mp4) ([source ledger](docs/evidence/demo_capture.txt) ·
 [proof](docs/evidence/demo_proof.json)):
 

@@ -173,11 +173,53 @@ def encode(scenes: dict, fps: int = FPS, keep: bool = False) -> None:
         print(f"[encode] removed the frame sequence (kept {WORK})")
 
 
+def write_proof(fps: int = FPS) -> dict:
+    """Write docs/evidence/demo_proof.json from the encoded file itself - never hand-typed."""
+    probe = subprocess.run([FFPROBE, "-v", "error",
+                            "-show_entries", "format=duration,size",
+                            "-show_entries", "stream=codec_name,pix_fmt,width,height,nb_frames",
+                            "-of", "json", str(OUT_MP4)], capture_output=True, text=True, check=True)
+    info = json.loads(probe.stdout)
+    st = info["streams"][0]
+    scenes = json.loads(SCENES_JSON.read_text())
+    duration = float(info["format"]["duration"])
+    frames = int(st.get("nb_frames") or 0)
+    proof = {
+        "file": "docs/demo.mp4",
+        "duration_s": round(duration, 3),
+        "frames": frames,
+        "fps": fps,
+        "codec": st["codec_name"],
+        "pix_fmt": st.get("pix_fmt"),
+        "size": f"{st['width']}x{st['height']}",
+        "bytes": int(info["format"]["size"]),
+        "lanes": scenes["counts"]["lanes"],
+        "lane_sweep": f"{scenes['counts']['sweep_ok']}/{scenes['counts']['lanes']}",
+        "tools": scenes["counts"]["tools"],
+        "validator": {
+            "bad_ok": scenes["bad"]["ok"],
+            "good_ok": scenes["good"]["ok"],
+            "bad_issues": len(scenes["bad"]["issues"]),
+        },
+        "renderer": "docs/render/demo.html, drawn frame-by-frame through Chrome over CDP by "
+                    "scripts/demo_render.py and encoded with ffmpeg",
+        "method": "Every frame is a pure function of t, and every string on screen comes from "
+                  "docs/evidence/demo_capture.txt - real handler output. Not a screen recording.",
+    }
+    out = HERE / "docs/evidence/demo_proof.json"
+    out.write_text(json.dumps(proof, indent=2) + "\n")
+    expect = round(duration * fps)
+    if abs(expect - frames) > 2:
+        sys.exit(f"[proof] FAILED: {frames} frames at {fps}fps implies {expect}, file says {duration}s")
+    print(f"[proof] wrote {out}: {duration}s, {frames} frames, {proof['lane_sweep']} lanes")
+    return proof
+
+
 # --------------------------------------------------------------------------- main
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["html", "capture", "encode", "all"])
+    ap.add_argument("cmd", choices=["html", "capture", "encode", "proof", "all"])
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=None)
     ap.add_argument("--fps", type=int, default=FPS)
@@ -190,11 +232,15 @@ def main() -> None:
         capture(a.start, a.end if a.end is not None else a.start + 300, a.fps)
     elif a.cmd == "encode":
         encode(json.loads(SCENES_JSON.read_text()), a.fps, a.keep_frames)
+        write_proof(a.fps)
+    elif a.cmd == "proof":
+        write_proof(a.fps)
     else:
         build_html()
         total = build_total(a.fps)
         capture(0, total, a.fps)
         encode(json.loads(SCENES_JSON.read_text()), a.fps, a.keep_frames)
+        write_proof(a.fps)
 
 
 def build_total(fps: int) -> int:
