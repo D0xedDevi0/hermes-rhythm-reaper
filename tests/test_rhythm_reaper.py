@@ -105,6 +105,15 @@ class TestRespell(unittest.TestCase):
     def test_acronym_candidate_detected(self):
         self.assertIn("JPEG", studio.proper_noun_candidates("the JPEG proof"))
 
+    def test_metatags_are_never_respelled(self):
+        out, _ = studio.respell("[Verse 1]\njpeg on the 808\n[Distorted 808]\nagain 808")
+        self.assertIn("[Verse 1]", out)
+        self.assertIn("[Distorted 808]", out)
+        self.assertNotIn("Verse one", out)
+        self.assertNotIn("[Distorted eight oh eight]", out)
+        body = [l for l in out.splitlines() if not l.startswith("[")]
+        self.assertTrue(all("eight oh eight" in l for l in body), body)
+
     def test_camel_case_detected(self):
         self.assertIn("DisTrO", studio.proper_noun_candidates("a DisTrO run"))
 

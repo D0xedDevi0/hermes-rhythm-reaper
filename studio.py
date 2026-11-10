@@ -111,14 +111,13 @@ def proper_noun_candidates(text: str) -> list[str]:
     return out
 
 
-def respell(text: str) -> tuple[str, list[tuple[str, str]]]:
-    """Apply the respell table plus the digit rule.
+TAG_RE = re.compile(r"\[[^\]\n]*\]")
 
-    Returns ``(new_text, [(before, after), ...])`` so the caller can show exactly
-    what changed rather than silently rewriting the writer's words.
-    """
+
+def _respell_segment(seg: str) -> tuple[str, list[tuple[str, str]]]:
+    """Respell one run of sung text (never a bracket tag)."""
     applied: list[tuple[str, str]] = []
-    out = text or ""
+    out = seg or ""
     for before, after in RESPELL_TABLE.items():
         pattern = re.compile(rf"\b{re.escape(before)}\b", re.IGNORECASE)
         if pattern.search(out):
@@ -129,6 +128,27 @@ def respell(text: str) -> tuple[str, list[tuple[str, str]]]:
         for m in re.finditer(r"\d+", out):
             applied.append((m.group(0), _digits_to_words(m.group(0))))
         out = rewritten
+    return out, applied
+
+
+def respell(text: str) -> tuple[str, list[tuple[str, str]]]:
+    """Apply the respell table plus the digit rule, leaving [metatags] alone.
+
+    Returns ``(new_text, [(before, after), ...])`` so the caller can show exactly
+    what changed rather than silently rewriting the writer's words.
+    """
+    applied: list[tuple[str, str]] = []
+    out = ""
+    pos = 0
+    for m in TAG_RE.finditer(text or ""):
+        fixed, ap = _respell_segment(text[pos:m.start()])
+        out += fixed
+        applied += ap
+        out += m.group(0)
+        pos = m.end()
+    fixed, ap = _respell_segment(text[pos:])
+    out += fixed
+    applied += ap
     return out, applied
 
 
