@@ -130,3 +130,51 @@ Suno does not obey a bar map literally. The frame gets the structure, the tempo 
 dynamics into the first render; expect to reroll, and expect to trim. If the render comes
 back at a different length than 135s, the cut is adjusted to the track, not the other way
 around.
+
+## The render (as received)
+
+| | |
+| --- | --- |
+| length | 181.6s |
+| format | mp3, 48 kHz stereo, 192 kbps, plus embedded cover art |
+| loudness | -15.6 LUFS integrated, LRA 4.5 LU, true peak -3.2 dBFS |
+| container tags | `title=Forty-One Lanes`, `artist=d0xeddev`, `comment=made with suno; created=2026-11-10T17:44:45Z; id=39e75399-...` |
+| embedded `lyrics-eng` | the frame above, byte-for-byte, minus the trailing newline |
+
+Suno did not follow the bar map literally - it rendered 96 bars instead of 72 and stretched the
+whole thing to 3:02. Before cutting anything, the section map was measured off the audio rather
+than assumed: RMS in 0.5s windows shows a **breakdown from 123.0-127.5s**, the drop back in at
+**128.0s**, and the biggest section of the track starting at **160.5-161.0s** and running to the
+end. (Those are energy boundaries, not lyric timings - the container carries no timestamps, so
+the hook attribution below is inference, not measurement.)
+
+## The overlay
+
+The video is 94.5s and the track is 181.6s, so the cut uses **the last 94.5s of the track**
+(offset 87.1s) instead of truncating it: the song's own ending lands on the video's ending, and
+nothing is faded out early. Where the measured events land on screen:
+
+| song | video | scene |
+| --- | --- | --- |
+| 123.0-127.5 breakdown | 35.9-40.4s | the tail of the lane spec |
+| 128.0 drop | 40.9s | first frames of the pasteable deliverable |
+| 160.5-181.6 final section | 73.4-94.5s | respell -> **41/41 sweep** -> outro |
+
+Mux, with the video stream copied so no frame is re-encoded:
+
+```bash
+ffmpeg -ss 87.1 -i "Suno export.mp3" -i docs/demo.mp4 \
+  -af "volume=0.5dB,afade=t=in:st=0:d=0.25" \
+  -c:v copy -c:a aac -b:a 192k -ar 48000 -movflags +faststart -shortest docs/demo-song.mp4
+```
+
+- gain is a plain **+0.5 dB linear, no dynamics processing** - the source was already consistently
+  loud (LRA 4.5 LU), so there is nothing for a compressor to fix and no excuse for one.
+- a 0.25s fade-in only, because the cut starts mid-phrase; no fade-out, because the song ends.
+- video stream md5 of the muxed file equals the silent cut's (`7a0920bd8a34e98d5b2d9d869941bbac`,
+  2835 frames), i.e. the picture in `docs/demo-song.mp4` is byte-for-byte `docs/demo.mp4`.
+- delivered audio: **-14.3 LUFS integrated, -2.4 dBFS true peak** - inside the -14/-1.5 target
+  social platforms normalise against, with margin for their transcodes.
+
+`docs/demo.mp4` stays in the repo as the silent evidence artifact; `docs/demo-song.mp4` is the
+version with the track.
