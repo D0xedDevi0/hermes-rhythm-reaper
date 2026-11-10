@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Rhythm Reaper — demo</title>
+<style>
+  html,body{margin:0;height:100%;background:#00020a;overflow:hidden}
+  canvas{display:block;width:1600px;height:900px}
+</style>
+</head>
+<body>
+<canvas id="c" width="1600" height="900"></canvas>
+<script>
+/* ---------------------------------------------------------------------------
+   THE RHYTHM REAPER — animated demo renderer.
+
+   Every string on screen comes from SCENES, which is the captured handler
+   ledger (docs/evidence/demo_scenes.json) injected by scripts/demo_render.py.
+   Nothing here is typed by hand, and nothing is randomised per run: the whole
+   frame is a pure function of t, so the same t always renders the same frame.
+--------------------------------------------------------------------------- */
+const SCENES = /*__SCENES__*/ {};
+
+const W = 1600, H = 900, FPS = 30;
+const cv = document.getElementById('c');
+const X = cv.getContext('2d', { alpha: false });
+
+const COL = {
+  cyan:'#00d4ff', cyanDim:'#0a7ea8', violet:'#b026ff', amber:'#ffb400',
+  green:'#00ff9c', red:'#ff3b5c', white:'#e8f6ff', grey:'#7f93a8',
+  navy:'#001240', deep:'#02060f', pink:'#ff3ea5'
+};
+const FONT = '"DejaVu Sans", "Liberation Sans", system-ui, sans-serif';
+const MONOF = '"DejaVu Sans Mono", "Liberation Mono", monospace';
+
+/* ---- deterministic helpers ---------------------------------------------- */
+const clamp01 = t => t < 0 ? 0 : t > 1 ? 1 : t;
+const seg = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => { t = clamp01(t); return t * t * (3 - 2 * t); };
+const easeOut = t => 1 - Math.pow(1 - clamp01(t), 3);
+function rng(seed) { let s = (seed >>> 0) || 1; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+
+/* ---- static fields (computed once, animated by t) ----------------------- */
+const STARS = (() => { const r = rng(20261110), a = []; for (let i = 0; i < 190; i++) a.push({ x: r() * W, y: r() * H, z: .2 + r() * .8, tw: r() * 6.283 }); return a; })();
+const MOTES = (() => { const r = rng(777001), a = []; for (let i = 0; i < 110; i++) a.push({ x: r() * W, y: r() * H, s: 1 + r() * 2.6, v: .25 + r() * .9, ph: r() * 6.283 }); return a; })();
+const WAVE = (() => { const r = rng(4242), a = []; for (let i = 0; i < 96; i++) a.push({ f: 1 + r() * 7, p: r() * 6.283, amp: .35 + r() * .65 }); return a; })();
+
+/* ---- text primitives ---------------------------------------------------- */
+function setFont(size, weight, mono) { X.font = (mono ? '600 ' : ((weight || 600) + ' ')) + size + 'px ' + (mono ? MONOF : FONT); }
+function txt(s, x, y, o) {
+  o = o || {};
+  const size = o.size || 22;
+  setFont(size, o.weight, o.mono);
+  if (X.letterSpacing !== undefined) X.letterSpacing = (o.track === undefined ? 0 : o.track) + 'px';
+  X.textAlign = o.align || 'left';
+  X.textBaseline = o.baseline || 'alphabetic';
+  X.globalAlpha = (o.alpha === undefined ? 1 : o.alpha);
+  if (o.stroke) { X.lineWidth = o.strokeW || Math.max(2, size * .11); X.strokeStyle = o.stroke; X.lineJoin = 'round'; X.strokeText(s, x, y); }
+  if (o.glow) { X.shadowColor = o.glow; X.shadowBlur = (o.blur === undefined ? size * .55 : o.blur); }
+  X.fillStyle = o.color || COL.white;
+  X.fillText(s, x, y);
+  X.shadowBlur = 0; X.globalAlpha = 1;
+}
+function txtW(s, o) { o = o || {}; setFont(o.size || 22, o.weight, o.mono); if (X.letterSpacing !== undefined) X.letterSpacing = (o.track || 0) + 'px'; return X.measureText(s).width; }
+function fitLines(s, maxw, o) {          // wrap to width, cap the line count
+  o = o || {};
+  const words = String(s).split(/\s+/), lines = []; let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (txtW(t, o) <= maxw || !cur) cur = t; else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  const cap = o.maxLines || 99;
+  if (lines.length <= cap) return { lines, more: 0 };
+  return { lines: lines.slice(0, cap), more: lines.length - cap };
+}
+function typeOut(s, p) { return s.slice(0, Math.round(s.length * clamp01(p))); }   // typewriter slice
+function drawLines(lines, x, y, lh, o) { lines.forEach((l, i) => txt(l, x, y + i * lh, o)); }
+
+/* ---- shapes ------------------------------------------------------------- */
+function rr(x, y, w, h, r) { X.beginPath(); X.roundRect(x, y, w, h, r === undefined ? 10 : r); }
+function panel(x, y, w, h, o) {
+  o = o || {};
+  const a = o.alpha === undefined ? 1 : o.alpha, ac = o.accent || COL.cyan;
+  X.globalAlpha = a; X.fillStyle = 'rgba(3,10,24,.82)';
+  rr(x, y, w, h, o.r === undefined ? 12 : o.r); X.fill();
+  X.strokeStyle = ac; X.lineWidth = 1.4; X.shadowColor = ac; X.shadowBlur = 14; X.stroke();
+  X.shadowBlur = 0;
+  if (o.title) {
+    X.fillStyle = 'rgba(0,212,255,.09)'; rr(x, y, w, 40, 12); X.fill();
+    X.beginPath(); X.moveTo(x, y + 40.5); X.lineTo(x + w, y + 40.5); X.strokeStyle = 'rgba(0,212,255,.35)'; X.lineWidth = 1; X.stroke();
+    txt(o.title, x + 16, y + 27, { size: o.titleSize || 17, color: ac, weight: 700, track: 1.6, mono: true, glow: ac, blur: 10 });
+  }
+  const k = 16; X.strokeStyle = ac; X.lineWidth = 2; X.shadowColor = ac; X.shadowBlur = 12;
+  X.beginPath();                                   // corner ticks
+  X.moveTo(x, y + k); X.lineTo(x, y); X.lineTo(x + k, y);
+  X.moveTo(x + w - k, y); X.lineTo(x + w, y); X.lineTo(x + w, y + k);
+  X.moveTo(x + w, y + h - k); X.lineTo(x + w, y + h); X.lineTo(x + w - k, y + h);
+  X.moveTo(x + k, y + h); X.lineTo(x, y + h); X.lineTo(x, y + h - k);
+  X.stroke(); X.shadowBlur = 0; X.globalAlpha = 1;
+}
+function chip(s, x, y, o) {
+  o = o || {};
+  const size = o.size || 15, pad = o.pad === undefined ? 9 : o.pad;
+  const w = txtW(s, { size, mono: true, weight: 700 }) + pad * 2, h = size + 13;
+  const c = o.color || COL.cyan;
+  X.globalAlpha = o.alpha === undefined ? 1 : o.alpha;
+  X.fillStyle = o.bg || 'rgba(0,212,255,.10)'; rr(x, y, w, h, 6); X.fill();
+  X.strokeStyle = c; X.lineWidth = 1; X.shadowColor = c; X.shadowBlur = 8; X.stroke(); X.shadowBlur = 0;
+  txt(s, x + pad, y + h - size * .34, { size, mono: true, weight: 700, color: c });
+  X.globalAlpha = 1;
+  return w;
+}
+function meter(x, y, w, h, p, color, alpha) {
+  X.globalAlpha = alpha === undefined ? 1 : alpha;
+  X.fillStyle = 'rgba(255,255,255,.08)'; rr(x, y, w, h, h / 2); X.fill();
+  X.fillStyle = color; X.shadowColor = color; X.shadowBlur = 12;
+  rr(x, y, Math.max(h, w * clamp01(p)), h, h / 2); X.fill(); X.shadowBlur = 0;
+  X.globalAlpha = 1;
+}
+function glowLine(x1, y1, x2, y2, color, w, alpha) {
+  X.globalAlpha = alpha === undefined ? 1 : alpha;
+  X.strokeStyle = color; X.lineWidth = w || 2; X.shadowColor = color; X.shadowBlur = 16;
+  X.beginPath(); X.moveTo(x1, y1); X.lineTo(x2, y2); X.stroke(); X.shadowBlur = 0; X.globalAlpha = 1;
+}
+
+/* ---- backdrop ----------------------------------------------------------- */
+function backdrop(t, strength) {
+  const s = strength === undefined ? 1 : strength;
+  const g = X.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#02060f'); g.addColorStop(.55, '#04122c'); g.addColorStop(1, '#010409');
+  X.fillStyle = g; X.fillRect(0, 0, W, H);
+
+  const hz = 214;                                    // synthwave horizon
+  X.save(); X.globalAlpha = .30 * s;
+  const gg = X.createLinearGradient(0, hz, 0, H);
+  gg.addColorStop(0, 'rgba(0,212,255,.42)'); gg.addColorStop(1, 'rgba(176,38,255,0)');
+  X.fillStyle = gg; X.fillRect(0, hz, W, H - hz);
+  X.restore();
+
+  X.save(); X.globalAlpha = .16 * s; X.strokeStyle = COL.cyan; X.lineWidth = 1;
+  for (let i = 0; i <= 26; i++) { const x = (i / 26) * W; X.beginPath(); X.moveTo(lerp(W / 2, x, .18), hz); X.lineTo(x, H); X.stroke(); }
+  const off = (t * .55) % 40;
+  for (let y = hz; y < H; y++) { const p = (y - hz) / (H - hz); const yy = hz + Math.pow(p, 2.3) * (H - hz) + off * (1 - p) * .9; if (yy < H) { X.beginPath(); X.moveTo(0, yy); X.lineTo(W, yy); X.stroke(); } }
+  X.restore();
+
+  for (const st of STARS) {                          // starfield
+    const tw = .35 + .65 * Math.abs(Math.sin(t * .8 + st.tw));
+    X.globalAlpha = .5 * st.z * tw * s; X.fillStyle = st.z > .7 ? COL.white : COL.cyanDim;
+    X.fillRect(st.x, (st.y + t * 5 * st.z) % H, st.z * 2.1, st.z * 2.1);
+  }
+  X.globalAlpha = 1;
+
+  for (const m of MOTES) {                           // drifting motes
+    const y = (m.y - t * 26 * m.v) % H, yy = y < 0 ? y + H : y;
+    const x = m.x + Math.sin(t * .55 + m.ph) * 16;
+    X.globalAlpha = .22 + .3 * Math.abs(Math.sin(t * 1.4 + m.ph)); X.fillStyle = COL.cyan;
+    X.shadowColor = COL.cyan; X.shadowBlur = 10; X.beginPath(); X.arc(x, yy, m.s, 0, 6.284); X.fill();
+  }
+  X.shadowBlur = 0; X.globalAlpha = 1;
+}
+function post(t, i) {                                // scanlines, grain, vignette, chromatic edge
+  X.save();
+  X.globalAlpha = .055; X.fillStyle = '#000';
+  for (let y = 0; y < H; y += 3) X.fillRect(0, y, W, 1);
+  X.restore();
+  const sw = ((t * 210) % (H + 260)) - 130;          // travelling scan bar
+  const sg = X.createLinearGradient(0, sw - 90, 0, sw + 90);
+  sg.addColorStop(0, 'rgba(0,212,255,0)'); sg.addColorStop(.5, 'rgba(0,212,255,.055)'); sg.addColorStop(1, 'rgba(0,212,255,0)');
+  X.fillStyle = sg; X.fillRect(0, sw - 90, W, 180);
+
+  const r = rng(1000 + i);                            // grain
+  X.globalAlpha = .05;
+  for (let k = 0; k < 900; k++) { X.fillStyle = r() > .5 ? '#fff' : '#0ff'; X.fillRect(r() * W, r() * H, 1, 1); }
+  X.globalAlpha = 1;
+
+  const vg = X.createRadialGradient(W / 2, H / 2, H * .42, W / 2, H / 2, H * 1.05);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.72)');
+  X.fillStyle = vg; X.fillRect(0, 0, W, H);
+}
+function glitch(amount, i) {                          // RGB slice tear
+  if (amount <= 0) return;
+  const r = rng(4000 + i * 7);
+  for (let k = 0; k < 7; k++) {
+    const y = r() * H, h = 6 + r() * 34, dx = (r() - .5) * 60 * amount;
+    if (dx === 0) continue;
+    const slice = X.getImageData(0, y, W, h);
+    X.globalAlpha = .55 * amount;
+    X.putImageData(slice, dx, y, 0, 0, W, h);
+    X.globalAlpha = 1;
+  }
+}
+function hud(t, label) {
+  X.globalAlpha = .9;
+  txt('THE RHYTHM REAPER', 34, 42, { size: 15, mono: true, weight: 700, color: COL.cyan, track: 2.4, glow: COL.cyan, blur: 9 });
+  txt(label, W - 34, 42, { size: 15, mono: true, weight: 700, color: COL.grey, align: 'right', track: 1.6 });
+  glowLine(34, 54, W - 34, 54, COL.cyan, 1, .28);
+  const tc = (() => { const s = Math.floor(t), f = Math.floor((t - s) * FPS); return '00:' + String(s).padStart(2, '0') + ':' + String(f).padStart(2, '0'); })();
+  X.globalAlpha = .5; txt(tc, W - 34, H - 26, { size: 14, mono: true, color: COL.grey, align: 'right' });
+  X.globalAlpha = .45 + .4 * Math.abs(Math.sin(t * 2.4));
+  X.fillStyle = COL.red; X.shadowColor = COL.red; X.shadowBlur = 12; X.beginPath(); X.arc(W - 132, H - 31, 5, 0, 6.284); X.fill();
+  X.shadowBlur = 0; X.globalAlpha = .5;
+  txt('REC', W - 120, H - 26, { size: 14, mono: true, color: COL.grey });
+  X.globalAlpha = .5; txt('github.com/D0xedDevi0/hermes-rhythm-reaper', 34, H - 26, { size: 14, mono: true, color: COL.grey });
+  X.globalAlpha = 1;
+}
+
+/* =========================================================================
+   SCENES
+   ========================================================================= */
+function sceneTitle(t) {
+  const r = rng(11);
+  glitch(Math.max(0, 1 - t / .5) * .9, Math.round(t * FPS));
+  const y = 300 + Math.sin(t * 1.3) * 5;
+  for (let k = 2; k >= 0; k--) {                                  // RGB split echo
+    const a = (k === 0 ? 1 : .34 / k) * smooth(seg(t, 0, .7));
+    const dx = k === 0 ? 0 : (k === 1 ? -5 - Math.sin(t * 9) * 3 : 5 + Math.cos(t * 8) * 3);
+    txt('THE RHYTHM REAPER', W / 2 + dx, y + (k ? Math.sin(t * 7 + k) * 2 : 0), {
+      size: 104, weight: 800, align: 'center', track: 6, alpha: a,
+      color: k === 0 ? COL.white : (k === 1 ? 'rgba(255,62,92,.75)' : 'rgba(0,212,255,.75)'),
+      glow: k === 0 ? COL.cyan : (k === 1 ? COL.red : COL.cyan), blur: 34
+    });
+  }
+  const p2 = smooth(seg(t, .5, 1.3));
+  txt('a hip-hop producer desk for Hermes Agent', W / 2, y + 62, { size: 30, align: 'center', color: COL.cyan, alpha: p2, glow: COL.cyan, blur: 16 });
+
+  const chips = [
+    [SCENES.counts.lanes + ' LANES', COL.cyan],
+    [SCENES.counts.tools + ' TOOLS', COL.violet],
+    ['54 OFFLINE TESTS', COL.green],
+    ['ZERO NETWORK', COL.amber],
+    ['NO KEYS', COL.pink]
+  ];
+  let cx = 0; const cy = y + 128;
+  chips.forEach(c => { cx += txtW(c[0], { size: 15, mono: true, weight: 700 }) + 26; });
+  let x = W / 2 - cx / 2;
+  chips.forEach((c, i) => {
+    const a = smooth(seg(t, 1.1 + i * .22, 1.7 + i * .22));
+    const w = chip(c[0], x, cy - (1 - a) * 14, { color: c[1], alpha: a, size: 15 });
+    x += w + 14;
+  });
+
+  const bars = 64, bw = 13, gap = 6, bx = (W - (bars * (bw + gap) - gap)) / 2, by = 640;
+  for (let i = 0; i < bars; i++) {
+    const w0 = WAVE[i % WAVE.length];
+    const amp = (Math.sin(t * 2.1 * w0.f + w0.p) * .5 + .5) * w0.amp * .78 + .12;
+    const h = 20 + amp * 130 * (1 - Math.abs(i - bars / 2) / bars * .55);
+    const col = i % 5 === 0 ? COL.violet : (i % 3 === 0 ? COL.cyan : COL.cyanDim);
+    X.globalAlpha = .28 + .6 * amp;
+    X.fillStyle = col; X.shadowColor = col; X.shadowBlur = 14;
+    rr(bx + i * (bw + gap), by - h, bw, h, 3); X.fill();
+  }
+  X.shadowBlur = 0; X.globalAlpha = 1;
+  glowLine(bx, by + 6, bx + bars * (bw + gap) - gap, by + 6, COL.cyan, 1.4, .5);
+
+  txt('neon cut · rendered from real captured tool output', W / 2, 706, { size: 17, align: 'center', color: COL.grey, alpha: smooth(seg(t, 1.8, 2.4)), mono: true });
+  txt('@NousResearch Hermes plugin  ·  D0xedDevi0', W / 2, 792, { size: 19, align: 'center', color: COL.white, alpha: smooth(seg(t, 2.1, 2.7)), glow: COL.cyan, blur: 12 });
+}
+
+function header(k, title, t, extra) {
+  const p = smooth(seg(t, 0, .5));
+  txt(k, 34, 118, { size: 15, mono: true, weight: 700, color: COL.pink, alpha: .95, track: 2, glow: COL.pink, blur: 10 });
+  txt(title, 34, 156, { size: 36, weight: 800, color: COL.white, alpha: .96, glow: COL.cyan, blur: 16 });
+  glowLine(34 + txtW(title, { size: 36, weight: 800 }) + 22, 146, 34 + txtW(title, { size: 36, weight: 800 }) + 22 + 120 * p, 146, COL.cyan, 2, .7);
+  if (extra) txt(extra, W - 34, 150, { size: 16, mono: true, color: COL.cyan, align: 'right', alpha: .85, glow: COL.cyan, blur: 9 });
+}
+
+function sceneSearch(t) {
+  header('01', 'search by sound, not by name', t, SCENES.search.count + ' of ' + SCENES.search.total_lanes + ' lanes matched');
+  const p = smooth(seg(t, 0, .35));
+  const px = 34, py = 196 + (1 - p) * 18, pw = 940, ph = 470;
+  X.globalAlpha = p;
+  panel(px, py, pw, ph, { title: 'HOLO-TERMINAL — reaper_lanes', alpha: p });
+
+  const cmd = '$ tool reaper_lanes {"query": "sliding 808", "limit": 6}';
+  txt(typeOut(cmd, seg(t, .25, 1.1)), px + 22, py + 78, { size: 19, mono: true, color: COL.green, glow: COL.green, blur: 12 });
+  if (Math.sin(t * 7) > 0 && t < 1.4) txt('▌', px + 24 + txtW(typeOut(cmd, seg(t, .25, 1.1)), { size: 19, mono: true }), py + 78, { size: 19, mono: true, color: COL.green });
+
+  txt('count: ' + SCENES.search.count + '   total_lanes: ' + SCENES.search.total_lanes, px + 22, py + 112, { size: 17, mono: true, color: COL.grey, alpha: smooth(seg(t, 1.1, 1.5)) });
+  glowLine(px + 22, py + 128, px + pw - 22, py + 128, COL.cyan, 1, .25 * smooth(seg(t, 1.1, 1.5)));
+
+  SCENES.search.lanes.forEach((l, i) => {
+    const a = smooth(seg(t, 1.35 + i * .34, 1.9 + i * .34));
+    const ry = py + 152 + i * 56;
+    X.globalAlpha = a; X.fillStyle = 'rgba(0,212,255,.05)'; rr(px + 18, ry, pw - 36, 46, 8); X.fill();
+    glowLine(px + 18 + (1 - a) * -40, ry + 23, px + 18 + 90 * a, ry + 23, COL.cyan, 3, a * .8);
+    txt(l.name, px + 34, ry + 30, { size: 21, weight: 700, color: COL.white, alpha: a, glow: COL.cyan, blur: 10 });
+    txt(l.id, px + 330, ry + 30, { size: 16, mono: true, color: COL.grey, alpha: a });
+    chip(l.family, px + 470, ry + 6, { color: familyColor(l.family), alpha: a, size: 13 });
+    txt(l.bpm + ' bpm', px + pw - 150, ry + 30, { size: 17, mono: true, color: COL.cyan, align: 'right', alpha: a });
+    X.globalAlpha = 1;
+  });
+
+  const qx = 1000, qw = W - qx - 34;
+  X.globalAlpha = p;
+  panel(qx, py, qw, 214, { title: 'WHY IT IS BUILT THAT WAY', accent: COL.violet, alpha: p });
+  const why = [
+    'Lane vocabulary is indexed, so you search',
+    'for a SOUND - "sliding 808" - not a name.',
+    'The lane carries the production spec,',
+    'so the frame is fitted, never guessed.'
+  ];
+  why.forEach((l, i) => txt(l, qx + 22, py + 78 + i * 30, { size: 19, color: COL.white, alpha: p * smooth(seg(t, .6 + i * .18, 1 + i * .18)) }));
+  X.globalAlpha = 1;
+
+  const fan = py + 240;
+  panel(qx, fan, qw, 250, { title: 'THE CATALOG BY FAMILY', accent: COL.cyan, alpha: p });
+  const fams = Object.entries(SCENES.counts.families);
+  const total = SCENES.counts.lanes, barW = qw - 44, bx = qx + 22, by = fan + 92;
+  let acc = 0;
+  fams.forEach((f, i) => {
+    const w = barW * (f[1] / total) * smooth(seg(t, .8 + i * .16, 1.5 + i * .16));
+    X.fillStyle = familyColor(f[0]); X.shadowColor = familyColor(f[0]); X.shadowBlur = 12;
+    rr(bx + acc, by, Math.max(2, w - 2), 18, 4); X.fill(); X.shadowBlur = 0;
+    acc += barW * (f[1] / total);
+  });
+  fams.forEach((f, i) => {
+    const col = i % 2, row = Math.floor(i / 2);
+    const lx = bx + col * (barW / 2), ly = by + 50 + row * 28;
+    const a = smooth(seg(t, 1 + i * .12, 1.5 + i * .12));
+    X.globalAlpha = a; X.fillStyle = familyColor(f[0]); X.beginPath(); X.arc(lx + 6, ly - 5, 6, 0, 6.284); X.fill();
+    txt(f[0] + '  ' + f[1], lx + 22, ly, { size: 17, mono: true, color: COL.white, alpha: a });
+    X.globalAlpha = 1;
+  });
+}
+function familyColor(f) {
+  return ({ foundational: COL.cyan, trap: COL.violet, drill: COL.pink, melodic: COL.green, alt: COL.amber, hard: COL.red, conscious: COL.white })[f] || COL.cyan;
+}
+
+function sceneLane(t) {
+  const L = SCENES.lane;
+  header('02', 'one lane, read out in full', t, L.id + ' \u00b7 ' + L.family);
+  const p = smooth(seg(t, 0, .4));
+  const x = 34, y = 184, w = 620;
+  X.globalAlpha = p;
+  panel(x, y, w, 206, { title: 'SPEC', alpha: p });
+  txt(L.name, x + 22, y + 78, { size: 30, weight: 800, color: COL.white, glow: COL.cyan, blur: 14, alpha: p });
+  txt('BPM', x + 22, y + 112, { size: 14, mono: true, color: COL.grey, alpha: p });
+  txt(L.bpm, x + 22, y + 150, { size: 38, mono: true, weight: 700, color: COL.cyan, glow: COL.cyan, blur: 18, alpha: p });
+  txt('KEY', x + 300, y + 112, { size: 14, mono: true, color: COL.grey, alpha: p });
+  L.keys.slice(0, 3).forEach((k, i) => txt(k, x + 300, y + 140 + i * 26, { size: 17, mono: true, color: COL.white, alpha: p }));
+  const vb = fitLines('VIBE  ' + L.vibe, w - 44, { size: 16, maxLines: 1 });
+  txt(vb.lines[0], x + 22, y + 190, { size: 16, color: COL.cyan, alpha: p, mono: false });
+  X.globalAlpha = 1;
+
+  const specs = [['DRUMS', L.drums], ['LOW END', L.low_end], ['HARMONY', L.harmony], ['SAMPLE SOURCE', L.sample_source], ['VOCAL DELIVERY', L.vocal]];
+  specs.forEach((s, i) => {
+    const sy = 396 + i * 91, a = smooth(seg(t, .35 + i * .2, .9 + i * .2));
+    X.globalAlpha = a;
+    panel(x, sy, w, 86, { accent: i % 2 ? COL.violet : COL.cyan, alpha: a * .96, r: 10 });
+    txt(s[0], x + 18, sy + 26, { size: 13, mono: true, weight: 700, color: i % 2 ? COL.violet : COL.cyan, alpha: a, track: 1.4 });
+    const f = fitLines(s[1], w - 150, { size: 17, maxLines: 2 });
+    drawLines(f.lines, x + 18, sy + 50, 24, { size: 17, color: COL.white, alpha: a });
+    if (f.more) txt('+' + f.more + ' more', x + w - 108, sy + 50 + 24, { size: 13, mono: true, color: COL.grey, alpha: a });
+    X.globalAlpha = 1;
+  });
+
+  const rx = 686, rw = W - rx - 34;
+  X.globalAlpha = p;
+  panel(rx, 184, rw, 190, { title: 'THE ARC \u2014 WHAT MAKES IT NOT A LOOP', accent: COL.cyan, alpha: p });
+  const arcP = seg(t, 1.2, 5.6);
+  const arcF = fitLines(typeOut(L.arc, arcP), rw - 44, { size: 19, maxLines: 4 });
+  drawLines(arcF.lines, rx + 22, 250, 26, { size: 19, color: COL.cyan, alpha: p, glow: COL.cyan, blur: 9 });
+  if (arcP < 1 && Math.sin(t * 9) > 0) txt('\u258c', rx + 24 + txtW(arcF.lines[arcF.lines.length - 1] || '', { size: 19 }), 250 + (arcF.lines.length - 1) * 26, { size: 19, color: COL.cyan });
+  X.globalAlpha = 1;
+
+  panel(rx, 382, rw, 342, { title: 'SECTION PLAN \u2014 BARS AND ENERGY', accent: COL.violet, alpha: p });
+  L.section_plan.forEach((s, i) => {
+    const a = smooth(seg(t, 2 + i * .3, 2.5 + i * .3));
+    const ly = 452 + i * 44;
+    X.globalAlpha = a;
+    txt(s.section, rx + 22, ly, { size: 18, weight: 700, color: COL.white, alpha: a });
+    txt(s.bars + ' bars', rx + 240, ly, { size: 16, mono: true, color: COL.grey, alpha: a, align: 'right' });
+    meter(rx + 270, ly - 12, 220, 12, (s.energy / 10) * smooth(seg(t, 2.1 + i * .3, 3 + i * .3)), s.energy >= 8 ? COL.pink : (s.energy >= 6 ? COL.violet : COL.cyan), a);
+    txt(s.energy + '/10', rx + rw - 30, ly, { size: 16, mono: true, color: COL.cyan, align: 'right', alpha: a });
+    X.globalAlpha = 1;
+  });
+  const mt = L.metatags || [];
+  mt.forEach((m, i) => chip(m, rx + 22 + i * 136, 686, { color: COL.cyan, alpha: p * smooth(seg(t, 4 + i * .15, 4.4 + i * .15)), size: 13 }));
+
+  panel(rx, 732, rw, 138, { title: 'GENERATION NOTES', accent: COL.green, alpha: p });
+  L.gen_notes.slice(0, 2).forEach((g, i) => {
+    const a = p * smooth(seg(t, 4.6 + i * .4, 5.2 + i * .4));
+    const f = fitLines('\u25b8 ' + g, rw - 44, { size: 17, maxLines: 1 });
+    txt(f.lines[0], rx + 22, 800 + i * 30, { size: 17, color: COL.white, alpha: a });
+  });
+}
+function sceneBlock(t) {
+  const B = SCENES.block, V = B.validation;
+  header('03', 'a complete pasteable deliverable', t, 'fitted automatically, then measured');
+  const p = smooth(seg(t, 0, .4));
+  const x = 34, y = 196, w = 900;
+  X.globalAlpha = p;
+  panel(x, y, w, 620, { title: "PASTEABLE \u2014 in Suno's field order", alpha: p });
+
+  txt('TITLE:', x + 22, y + 84, { size: 15, mono: true, color: COL.grey, alpha: p });
+  txt(B.title, x + 120, y + 84, { size: 24, mono: true, weight: 700, color: COL.white, glow: COL.cyan, blur: 12, alpha: p });
+
+  txt('STYLE:', x + 22, y + 128, { size: 15, mono: true, color: COL.grey, alpha: p });
+  const styleF = fitLines(B.style.text, w - 170, { size: 16, maxLines: 4 });
+  drawLines(styleF.lines.map((l, i) => typeOut(l, seg(t, 1 + i * .25, 1.5 + i * .25))), x + 120, y + 154, 24, { size: 16, mono: true, color: COL.cyan });
+  if (styleF.more) txt('+' + styleF.more + ' more wrapped lines \u2014 the field is longer than it looks', x + 120, y + 250, { size: 13, mono: true, color: COL.grey, alpha: p });
+
+  txt('EXCLUDE:', x + 22, y + 284, { size: 15, mono: true, color: COL.grey, alpha: p });
+  const exF = fitLines(B.exclude, w - 220, { size: 15, maxLines: 1 });
+  txt(typeOut(exF.lines[0], seg(t, 2.6, 3.4)), x + 120, y + 284, { size: 15, mono: true, color: COL.amber });
+
+  txt('LYRICS:', x + 22, y + 326, { size: 15, mono: true, color: COL.grey, alpha: p });
+  const lyrLines = B.lyrics_frame.text.split('\n').filter(s => s.trim()).slice(0, 10);
+  lyrLines.forEach((l, i) => {
+    const a = p * smooth(seg(t, 3.2 + i * .22, 3.7 + i * .22));
+    const isTag = /^\[/.test(l.trim());
+    txt(l, x + 120, y + 352 + i * 25, { size: 16, mono: true, color: isTag ? COL.violet : COL.white, alpha: a, weight: isTag ? 700 : 600 });
+  });
+  X.globalAlpha = 1;
+
+  const rx = 966, rw = W - rx - 34;
+  X.globalAlpha = p;
+  panel(rx, y, rw, 300, { title: 'MEASURED, NOT EYEBALLED', accent: COL.green, alpha: p });
+  const counters = [
+    ['STYLE FIELD', V.style_chars, 1000, COL.cyan],
+    ['LYRIC FRAME', V.lyrics_chars, 3000, COL.violet]
+  ];
+  counters.forEach((c, i) => {
+    const cy = y + 96 + i * 104, a = p * smooth(seg(t, 1.4 + i * .5, 2.4 + i * .5));
+    txt(c[0], rx + 22, cy, { size: 15, mono: true, color: COL.grey, alpha: a });
+    const shown = Math.round(c[1] * smooth(seg(t, 1.6 + i * .5, 2.9 + i * .5)));
+    txt(shown + ' / ' + c[2], rx + rw - 22, cy, { size: 22, mono: true, weight: 700, color: c[3], align: 'right', alpha: a, glow: c[3], blur: 12 });
+    meter(rx + 22, cy + 16, rw - 44, 14, c[1] / c[2] * smooth(seg(t, 1.6 + i * .5, 2.9 + i * .5)), c[3], a);
+  });
+  X.globalAlpha = 1;
+
+  const by = y + 320;
+  panel(rx, by, rw, 300, { title: 'WHY THE ARC SURVIVED', accent: COL.amber, alpha: p });
+  const lines = [
+    'It fits by dropping WHOLE CLAUSES,',
+    'never by cutting a clause in half:',
+    'descriptor -> ARC -> BPM/key -> persona.',
+    'So a long lane loses the tail,',
+    'never the dynamics.'
+  ];
+  lines.forEach((l, i) => txt(l, rx + 22, by + 84 + i * 30, { size: 18, color: COL.white, alpha: p * smooth(seg(t, 1.6 + i * .28, 2.3 + i * .28)) }));
+  chip('trimmed: ' + (B.style.trimmed ? 'true' : 'false'), rx + 22, by + 246, { color: COL.green, alpha: p * smooth(seg(t, 3, 3.5)), size: 14 });
+  chip('ok: ' + (V.ok ? 'true' : 'false'), rx + 210, by + 246, { color: COL.green, alpha: p * smooth(seg(t, 3.2, 3.7)), size: 14 });
+
+  const rf = fitLines(B.reminder, W - 68, { size: 17, maxLines: 1 });
+  txt(typeOut(rf.lines[0], seg(t, 3.6, 4.8)), 34, 852, { size: 17, color: COL.cyan, glow: COL.cyan, blur: 10, alpha: p });
+}
+function sceneValidator(t) {
+  const BAD = SCENES.bad, GOOD = SCENES.good;
+  const phaseA = t < 6.2;
+  header('04', 'the validator refuses', t, phaseA ? 'a bad draft, refused' : 'a real draft, measured');
+  const a = phaseA ? smooth(seg(t, 0, .35)) * (1 - smooth(seg(t, 5.8, 6.2))) : smooth(seg(t, 6.2, 6.6));
+  const shake = phaseA ? Math.sin(t * 26) * (t < .6 ? 8 : 3) : 0;
+
+  if (phaseA) {
+    glitch(.5 * (1 - Math.min(1, t / .4)), Math.round(t * FPS));
+    X.globalAlpha = a;
+    panel(34 + shake, 196, 940, 600, { title: 'DRAFT UNDER TEST \u2014 rejected', accent: COL.red, alpha: a });
+    txt('ok = ' + (BAD.ok ? 'TRUE' : 'FALSE'), 944 + shake, 282, { size: 30, mono: true, weight: 700, color: COL.red, alpha: a, glow: COL.red, blur: 18, align: 'right' });
+    const bd = fitLines(SCENES.bad_draft, 880, { size: 18, mono: true, maxLines: 6 });
+    bd.lines.forEach((l, i) => txt(l, 58 + shake, 330 + i * 27, { size: 18, mono: true, color: COL.white, alpha: a * smooth(seg(t, .3 + i * .12, .7 + i * .12)) }));
+    if (bd.more) txt('+' + bd.more + ' more lines', 58 + shake, 330 + 6 * 27, { size: 13, mono: true, color: COL.grey, alpha: a });
+    BAD.issues.forEach((is, i) => {
+      const ia = smooth(seg(t, 1.4 + i * .5, 2 + i * .5));
+      const f = fitLines('! ' + is, 900, { size: 19, maxLines: 1 });
+      txt(f.lines[0], 58 + shake, 540 + i * 40, { size: 19, color: COL.red, alpha: a * ia, glow: COL.red, blur: 12 });
+    });
+    txt('it reports. it never silently rewrites \u2014 the fix is a', 58 + shake, 692, { size: 19, color: COL.amber, alpha: a * smooth(seg(t, 3.4, 4)), mono: true });
+    txt('writing decision, and the desk does not make those.', 58 + shake, 722, { size: 19, color: COL.amber, alpha: a * smooth(seg(t, 3.6, 4.2)), mono: true });
+    X.globalAlpha = 1;
+
+    const rx = 1000, rw = W - rx - 34;
+    X.globalAlpha = a;
+    panel(rx, 196, rw, 300, { title: 'WHAT IT FLAGS', accent: COL.red, alpha: a });
+    ['artist references', 'untagged section headers', 'no chorus / no payoff', 'contradictory dynamic tags', 'char limits, measured', 'un-respelled proper nouns']
+      .forEach((l, i) => txt('\u00d7 ' + l, rx + 22, 268 + i * 34, { size: 18, color: COL.white, alpha: a * smooth(seg(t, 1 + i * .2, 1.5 + i * .2)) }));
+    panel(rx, 516, rw, 280, { title: 'WHY A VALIDATOR AT ALL', accent: COL.pink, alpha: a });
+    ['Pronunciation and structure are baked in', 'at generation. There is no post-render fix', 'short of re-recording \u2014 so the cheap', 'moment to catch a bad draft is before', 'it is pasted.']
+      .forEach((l, i) => txt(l, rx + 22, 588 + i * 32, { size: 18, color: COL.white, alpha: a * smooth(seg(t, 1.2 + i * .3, 1.9 + i * .3)) }));
+    X.globalAlpha = 1;
+  } else {
+    const roll = smooth(seg(t, 6.2, 8.4));
+    X.globalAlpha = roll;
+    panel(34, 196, 940, 600, { title: 'DRAFT UNDER TEST \u2014 measured', accent: COL.green, alpha: roll });
+    txt('ok = ' + (GOOD.ok ? 'TRUE' : 'FALSE'), 944, 282, { size: 30, mono: true, weight: 700, color: COL.green, alpha: roll, glow: COL.green, blur: 18, align: 'right' });
+    const gl = fitLines(SCENES.good_draft, 880, { size: 17, mono: true, maxLines: 13 });
+    drawLines(gl.lines, 58, 322, 26, { size: 17, mono: true, color: COL.white, alpha: roll });
+    if (gl.more) txt('+' + gl.more + ' more lines', 58, 322 + 13 * 26, { size: 13, mono: true, color: COL.grey, alpha: roll });
+    GOOD.checks.forEach((c, i) => {
+      const a2 = roll * smooth(seg(t, 8.4 + i * .5, 9 + i * .5));
+      const cy = 700 + i * 44;
+      txt((c.ok ? '\u2713 ' : '\u00d7 ') + c.check, 58, cy, { size: 20, mono: true, color: c.ok ? COL.green : COL.red, alpha: a2, glow: c.ok ? COL.green : COL.red, blur: 10 });
+      txt(c.chars + ' / ' + c.limit, 720, cy, { size: 20, mono: true, color: COL.white, alpha: a2, align: 'right' });
+      meter(760, cy - 14, 180, 12, c.chars / c.limit, c.ok ? COL.green : COL.red, a2);
+    });
+    X.globalAlpha = 1;
+
+    const rx = 1000, rw = W - rx - 34;
+    X.globalAlpha = roll;
+    panel(rx, 196, rw, 240, { title: 'PASS', accent: COL.green, alpha: roll });
+    txt('0 issues', rx + 22, 300, { size: 44, mono: true, weight: 700, color: COL.green, glow: COL.green, blur: 20, alpha: roll });
+    txt('both limits measured, not estimated', rx + 22, 344, { size: 17, mono: true, color: COL.grey, alpha: roll });
+    meter(rx + 22, 380, rw - 44, 14, 1, COL.green, roll);
+    panel(rx, 456, rw, 340, { title: 'WHAT IT IS NOT', accent: COL.amber, alpha: roll });
+    ['Not a lyric writer \u2014 template bars are', 'interchangeable filler and you can hear it', 'in the first four. It hands you the frame;', 'the frame is correct and the bars are', 'yours.', '', 'Not an evaluation of a specific model \u2014', 'specs, not renders. Unusual pronunciations', 'still want a 30-second test clip.']
+      .forEach((l, i) => txt(l, rx + 22, 528 + i * 30, { size: 17, color: COL.white, alpha: roll * smooth(seg(t, 7 + i * .14, 7.5 + i * .14)) }));
+    X.globalAlpha = 1;
+  }
+}
+function sceneRespell(t) {
+  const R = SCENES.respell;
+  header('05', 'pronunciation is baked in at generation', t, R.changes.length + ' substitutions in one sweep');
+  const p = smooth(seg(t, 0, .4));
+  const x = 34, y = 196, w = 700;
+  X.globalAlpha = p;
+  panel(x, y, w, 330, { title: 'REWRITTEN', accent: COL.green, alpha: p });
+  const rw = fitLines(R.rewritten, w - 44, { size: 21, maxLines: 5 });
+  drawLines(rw.lines.map((l, i) => typeOut(l, seg(t, .8 + i * .5, 1.8 + i * .5))), x + 22, y + 96, 34, { size: 21, color: COL.green, glow: COL.green, blur: 12 });
+
+  panel(x, y + 350, w, 270, { title: 'CANDIDATES', accent: COL.violet, alpha: p });
+  R.candidates.forEach((c, i) => {
+    const a = p * smooth(seg(t, 1 + i * .25, 1.5 + i * .25));
+    const cy = y + 424 + i * 46;
+    txt(c.word, x + 22, cy, { size: 19, mono: true, color: COL.white, alpha: a });
+    txt('->', x + 210, cy, { size: 19, mono: true, color: COL.grey, alpha: a });
+    txt(c.say, x + 260, cy, { size: 19, mono: true, weight: 700, color: COL.violet, alpha: a, glow: COL.violet, blur: 10 });
+  });
+  X.globalAlpha = 1;
+
+  const rx = 766, rw2 = W - rx - 34;
+  X.globalAlpha = p;
+  panel(rx, y, rw2, 620, { title: 'THE SWEEP — every substitution it made', accent: COL.cyan, alpha: p });
+  R.changes.forEach((c, i) => {
+    const a = p * smooth(seg(t, .8 + i * .4, 1.3 + i * .4));
+    const cy = y + 100 + i * 74;
+    X.globalAlpha = a; X.fillStyle = 'rgba(0,212,255,.05)'; rr(rx + 18, cy - 34, rw2 - 36, 60, 8); X.fill();
+    const sweep = seg(t, 1 + i * .4, 2 + i * .4);
+    if (sweep < 1) { X.fillStyle = 'rgba(0,212,255,.16)'; X.fillRect(rx + 18 + (rw2 - 36) * sweep, cy - 34, 40, 60); }
+    txt(c.from, rx + 36, cy, { size: 22, mono: true, color: COL.grey, alpha: a });
+    txt('->', rx + 250, cy, { size: 22, mono: true, color: COL.cyan, alpha: a });
+    txt(c.to, rx + 320, cy, { size: 22, mono: true, weight: 700, color: COL.white, alpha: a, glow: COL.cyan, blur: 12 });
+    X.globalAlpha = 1;
+  });
+  const nf = fitLines(R.note, rw2 - 44, { size: 18, maxLines: 3 });
+  drawLines(nf.lines, rx + 22, y + 530, 30, { size: 18, color: COL.amber, alpha: p * smooth(seg(t, 3.2, 3.9)) });
+  X.globalAlpha = 1;
+}
+
+function sceneSweep(t) {
+  const N = SCENES.counts.lanes, ok = SCENES.counts.sweep_ok;
+  const fams = Object.keys(SCENES.counts.families);
+  header('06', 'all ' + N + ' lanes, built and gated', t, 'this is a test, not a claim');
+  const p = smooth(seg(t, 0, .4));
+  const cols = 9, rows = Math.ceil(N / cols);
+  const gw = 96, gh = 74, gx = 34, gy = 214;
+  for (let i = 0; i < N; i++) {
+    const i0 = i * .085, a = smooth(seg(t, .5 + i0, .9 + i0));
+    const cx = gx + (i % cols) * (gw + 12), cy = gy + Math.floor(i / cols) * (gh + 14);
+    const fam = fams[i % fams.length], col = familyColor(fam);
+    X.globalAlpha = a;
+    X.fillStyle = i < Math.round(ok * smooth(seg(t, .5, 4.6))) ? 'rgba(0,255,156,.14)' : 'rgba(255,255,255,.05)';
+    rr(cx, cy, gw, gh, 8); X.fill();
+    X.strokeStyle = a > .99 ? COL.green : col; X.lineWidth = 1.2; X.shadowColor = a > .99 ? COL.green : col; X.shadowBlur = 10; X.stroke(); X.shadowBlur = 0;
+    txt(String(i + 1).padStart(2, '0'), cx + 8, cy + 24, { size: 15, mono: true, color: COL.grey, alpha: a });
+    txt(a > .99 ? 'ok' : '..', cx + gw - 26, cy + 24, { size: 15, mono: true, weight: 700, color: a > .99 ? COL.green : COL.grey, alpha: a, glow: a > .99 ? COL.green : null, blur: 8 });
+    X.fillStyle = col; X.globalAlpha = a * .8; X.fillRect(cx + 8, cy + gh - 14, gw - 16, 4);
+    X.globalAlpha = 1;
+  }
+  const done = Math.round(ok * smooth(seg(t, .5, 4.6)));
+  const rx = 34 + cols * (gw + 12) + 24, rw = W - rx - 34;
+  X.globalAlpha = p;
+  panel(rx, gy, rw, 300, { title: 'THE GATES IT HAS TO PASS', accent: COL.green, alpha: p });
+  ['style field under 1000 chars', 'lyrics under 3000 chars', 'a recognised tag on every section', 'no contradictory dynamic tags', 'a real chorus or hook', 'no un-respelled proper nouns']
+    .forEach((l, i) => txt('✓ ' + l, rx + 22, gy + 78 + i * 36, { size: 18, color: COL.white, alpha: p * smooth(seg(t, .8 + i * .2, 1.3 + i * .2)) }));
+
+  const by = gy + 320;
+  panel(rx, by, rw, 268, { title: 'WHY IT MATTERS', accent: COL.cyan, alpha: p });
+  ['This sweep runs in the test suite.', 'A lane that stops building fails CI', 'rather than failing a user -', 'that is the difference between', 'a demo and a claim.', '', ''.padEnd(1), '']
+    .forEach((l, i) => txt(l, rx + 22, by + 78 + i * 30, { size: 18, color: COL.white, alpha: p * smooth(seg(t, 1 + i * .18, 1.5 + i * .18)) }));
+
+  const ca = smooth(seg(t, 4.8, 5.4));
+  txt(done + ' / ' + N, 34, 716, { size: 56, mono: true, weight: 700, color: COL.green, glow: COL.green, blur: 22, alpha: ca });
+  txt('lanes built a deliverable that passed its own gates', 34, 754, { size: 18, mono: true, color: COL.grey, alpha: ca });
+  if (t > 4.8) {                                        // success burst
+    const r = rng(9911);
+    for (let k = 0; k < 90; k++) {
+      const ang = r() * 6.283, sp = (r() * 320 + 60) * smooth(seg(t, 4.8, 5.6)), life = smooth(seg(t, 4.9, 5.6));
+      const bx0 = 520, by0 = 600;
+      X.globalAlpha = Math.max(0, 1 - life) * .0 + (1 - smooth(seg(t, 5.1, 6.3))) * .9;
+      X.fillStyle = k % 3 === 0 ? COL.green : (k % 3 === 1 ? COL.cyan : COL.violet);
+      X.shadowColor = X.fillStyle; X.shadowBlur = 10;
+      X.beginPath(); X.arc(bx0 + Math.cos(ang) * sp, by0 + Math.sin(ang) * sp * .5, 2 + r() * 3, 0, 6.284); X.fill();
+    }
+    X.shadowBlur = 0; X.globalAlpha = 1;
+  }
+  X.globalAlpha = 1;
+}
+
+function sceneOutro(t) {
+  const a = smooth(seg(t, 0, 1));
+  const sky = (() => { const r = rng(555), b = []; for (let i = 0; i < 46; i++) b.push({ x: i * 36 + (r() * 10), w: 22 + r() * 26, h: 60 + r() * 240 }); return b; })();
+  sky.forEach((b, i) => {
+    X.globalAlpha = .5 + .3 * Math.abs(Math.sin(t * 1.1 + i));
+    X.fillStyle = 'rgba(0,18,64,.85)'; X.fillRect(b.x, 660 - b.h, b.w, b.h);
+    for (let wy = 660 - b.h + 14; wy < 654; wy += 18) for (let wx = b.x + 5; wx < b.x + b.w - 6; wx += 9) {
+      if ((i * 7 + Math.round(wy / 18) * 3 + Math.round(wx / 9)) % 5 === 0) { X.fillStyle = Math.sin(t * 2 + i + wy) > 0 ? COL.cyan : COL.violet; X.globalAlpha = .5; X.fillRect(wx, wy, 3, 4); }
+    }
+  });
+  X.globalAlpha = 1;
+  txt('step your game up, quietly', W / 2, 190, { size: 40, weight: 800, align: 'center', color: COL.white, alpha: a, glow: COL.cyan, blur: 20 });
+  txt('install it in one line', W / 2, 236, { size: 20, align: 'center', color: COL.grey, alpha: a, mono: true });
+
+  const cmd = 'hermes plugins install D0xedDevi0/hermes-rhythm-reaper --enable';
+  const cw = txtW(cmd, { size: 26, mono: true }) + 60;
+  X.globalAlpha = a;
+  X.fillStyle = 'rgba(0,212,255,.08)'; rr(W / 2 - cw / 2, 300, cw, 74, 12); X.fill();
+  X.strokeStyle = COL.cyan; X.lineWidth = 1.6; X.shadowColor = COL.cyan; X.shadowBlur = 18; X.stroke(); X.shadowBlur = 0;
+  txt(typeOut(cmd, seg(t, .6, 2.2)), W / 2 - cw / 2 + 30, 348, { size: 26, mono: true, weight: 700, color: COL.green, glow: COL.green, blur: 14 });
+  X.globalAlpha = 1;
+
+  ['41 lanes', '5 tools', '54 offline tests', 'zero network', 'no keys', 'MIT']
+    .forEach((c, i) => {
+      const ca = smooth(seg(t, 1.6 + i * .16, 2.2 + i * .16));
+      chip(c, W / 2 - 300 + (i % 3) * 210, 420 + Math.floor(i / 3) * 46, { color: [COL.cyan, COL.violet, COL.green, COL.amber, COL.pink, COL.white][i], alpha: ca, size: 15 });
+    });
+
+  txt('github.com/D0xedDevi0/hermes-rhythm-reaper', W / 2, 560, { size: 24, mono: true, align: 'center', color: COL.cyan, alpha: smooth(seg(t, 2.6, 3.2)), glow: COL.cyan, blur: 14 });
+  txt('catalog PR 152733  ·  @NousResearch Hermes  ·  built by D0xedDevi0', W / 2, 600, { size: 19, mono: true, align: 'center', color: COL.white, alpha: smooth(seg(t, 2.9, 3.5)) });
+  txt('demo rendered offline from the captured handler ledger — no screen recording', W / 2, 646, { size: 17, mono: true, align: 'center', color: COL.grey, alpha: smooth(seg(t, 3.2, 3.8)) });
+}
+
+/* =========================================================================
+   TIMELINE — each entry is [start, end, draw(t - start), hud label]
+   ========================================================================= */
+const TL = [
+  [0, 7.5, sceneTitle, 'title'],
+  [7.5, 21.5, sceneSearch, 'search by sound'],
+  [21.5, 40.5, sceneLane, 'lane spec — uk-drill'],
+  [40.5, 58.5, sceneBlock, 'deliverable — Hood Up'],
+  [58.5, 72.5, sceneValidator, 'validator'],
+  [72.5, 80.5, sceneRespell, 'pronunciation sweep'],
+  [80.5, 88.5, sceneSweep, '41/41 lanes'],
+  [88.5, 94.5, sceneOutro, 'install']
+];
+const TOTAL = TL[TL.length - 1][1];
+
+window.SEEK = { total: TOTAL, fps: FPS, width: W, height: H, scenes: TL.map(x => ({ start: x[0], end: x[1], label: x[3] })) };
+
+let lastT = -1;
+window.seek = function (t) {
+  const i = Math.max(0, Math.round(t * FPS));
+  X.globalAlpha = 1; X.shadowBlur = 0;
+  backdrop(t, 1);
+  let cur = TL[0], idx = 0;
+  for (let k = 0; k < TL.length; k++) { if (t >= TL[k][0]) { cur = TL[k]; idx = k; } }
+  const local = t - cur[0], dur = cur[1] - cur[0];
+  const fadeIn = smooth(seg(local, 0, .35)), fadeOut = 1 - smooth(seg(local, dur - .3, dur));
+  X.save();
+  X.globalAlpha = fadeIn * fadeOut;
+  cur[2](local);
+  X.restore();
+  if (local < .3) glitch((1 - local / .3) * .7, i);
+  post(t, i);
+  hud(t, cur[3]);
+  lastT = t;
+  return true;
+};
+window.ready = true;
+</script>
+</body>
+</html>

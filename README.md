@@ -12,9 +12,16 @@ four. The desk owns the production decisions and hands you the structure already
 
 ## Watch it
 
-An 87-second walkthrough, rendered offline from real captured tool output —
+An 88-second walkthrough — animated, rendered offline from real captured tool output —
 [`docs/demo.mp4`](docs/demo.mp4) ([source ledger](docs/evidence/demo_capture.txt) ·
 [proof](docs/evidence/demo_proof.json)):
+
+Every frame is drawn on a canvas by [`docs/render/demo.html`](docs/render/demo.html),
+where the whole picture is a pure function of `t`: nothing is timed, nothing is randomised
+per run, so any frame can be re-rendered identically at any time.
+[`scripts/demo_render.py`](scripts/demo_render.py) drives that page through the local
+Chrome (CDP), writes the PNG sequence, and encodes it with ffmpeg. The strings it draws
+come from the ledger, which `scripts/demo_build.py capture` produced.
 
 1. searching the catalog by *sound* (`sliding 808`) rather than by name;
 2. one lane read out in full — tempo, key, drum programme, low end, the dynamic ARC, and a
@@ -166,9 +173,11 @@ fails CI rather than failing a user. CI also proves the plugin imports with `pyt
   other credential store.
 - **Files written outside the plugin:** none. The plugin is pure computation over the
   catalog in this repo; there is no data directory, cache, or log file.
-- **Shell / background behaviour:** none. No `subprocess`, no threads, no timers. The only
-  subprocess in the repo is `ffmpeg` inside `scripts/demo_build.py`, which is a developer
-  tool for rebuilding the demo video and is never imported by the plugin.
+- **Shell / background behaviour:** none in the plugin. No `subprocess`, no threads, no
+  timers, nothing spawned. Two developer tools outside the plugin's import graph do spawn
+  processes: `scripts/demo_build.py` calls `ffmpeg` to encode the demo, and
+  `scripts/demo_render.py` drives the local Chrome over CDP and then calls `ffmpeg`.
+  Neither script is imported by the plugin.
 - **Committed binaries:** none. `docs/demo.mp4` is a rendered demo artifact; there is no
   compiled code, no `.so`, no bytecode.
 
@@ -181,7 +190,9 @@ genres.py                   the 41-lane catalog
 studio.py                   builder, validator, respell engine
 tools.py                    tool schemas + handlers
 skills/rhythm-reaper-operations/SKILL.md   operator's manual (loaded with the plugin)
-scripts/demo_build.py       capture + render the demo from real output
+scripts/demo_build.py       capture the real handler output, and render the static cut
+scripts/demo_render.py      render the animated cut through Chrome + ffmpeg
+docs/render/demo.html       the animated demo itself (canvas, deterministic from t)
 tests/                      54 offline tests
 docs/                       the demo cut and its source ledger
 ```
